@@ -1,5 +1,5 @@
 import { convexAuth } from "@convex-dev/auth/server";
-import { Email } from "@convex-dev/auth/providers/email";
+import { Email } from "@convex-dev/auth/providers/Email";
 import authConfig from "./auth.config";
 import { query, mutation } from "./_generated/server";
 import { v } from "convex/values";

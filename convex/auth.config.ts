@@ -1,15 +1,6 @@
 import { type EmailUserConfig } from "@convex-dev/auth/server";
 import { Resend } from "resend";
 
-const resendApiKey = process.env.RESEND_API_KEY;
-if (!resendApiKey) {
-  // Avoid throwing an error during build if RESEND_API_KEY is not set,
-  // but log a warning. It will be checked at runtime in convex/auth.ts
-  console.warn("RESEND_API_KEY environment variable not set! Email sending will fail.");
-}
-
-const resend = resendApiKey ? new Resend(resendApiKey) : null;
-
 // Define the configuration for the email provider
 const emailProviderConfig: EmailUserConfig = {
   id: "resend", // This ID must match the one used in convex/auth.ts
@@ -17,15 +8,19 @@ const emailProviderConfig: EmailUserConfig = {
   
   // Function to send the verification request (magic link email)
   async sendVerificationRequest({ identifier: email, url, token }) {
-    if (!resend) {
-      console.error("Resend client not initialized. Cannot send email.");
+    const resendApiKey = process.env.RESEND_API_KEY;
+    if (!resendApiKey) {
+      console.error("CRITICAL: RESEND_API_KEY is not set. Cannot send email.");
       // Log the link for development/backup even if email sending fails
       console.log("========== RESEND NOT CONFIGURED - MAGIC LINK ==========");
       console.log(`Magic Link for ${email}:`);
       console.log(url);
       console.log("=========================================================");
-      return; // Exit if Resend is not configured
+      // Consider throwing an error or returning a specific status if email is critical
+      return; 
     }
+
+    const resend = new Resend(resendApiKey);
 
     try {
       await resend.emails.send({
