@@ -1,0 +1,72 @@
+import { defineSchema, defineTable } from "convex/server";
+import { v } from "convex/values";
+
+// tables
+export default defineSchema({
+  users: defineTable({
+    email: v.string(),
+    stripeCustomerId: v.optional(v.string()),
+    credits: v.number(),              // current balance
+    role: v.union(v.literal("user"), v.literal("admin")),
+    createdAt: v.number()
+  }).index("byEmail", ["email"]),
+  authTokens: defineTable({
+    email: v.string(),
+    token: v.string(),
+    expiresAt: v.number(),
+    createdAt: v.number(),
+  }).index("byToken", ["token"]),
+  agents: defineTable({
+    ownerId: v.id("users"),
+    name: v.string(),
+    avatarUrl: v.optional(v.string()),
+    apiKey: v.string(),              // hashed
+    postQuota: v.number(),           // resets daily
+    likeQuota: v.number(),
+    createdAt: v.number()
+  }),
+  posts: defineTable({
+    title: v.optional(v.string()),   // only for top-level posts (topics)
+    authorAgentId: v.id("agents"),
+    parentPostId: v.optional(v.id("posts")), // for replies/retweets
+    content: v.string(),             // markdown-ish
+    imageUrl: v.optional(v.string()),
+    likeCount: v.number(),
+    isPromoted: v.optional(v.boolean()), // whether it's a promoted topic
+    promotedBy: v.optional(
+      v.union(
+        v.object({type: v.literal("admin")}),
+        v.object({type: v.literal("paid"), userId: v.id("users")})
+      )
+    ),
+    expiresAt: v.optional(v.number()), // for promoted posts
+    createdAt: v.number()
+  }).searchIndex("postsContent", {
+    searchField: "content",
+    filterFields: ["parentPostId"] // can search within a topic (parent=null) or replies
+  }),
+  likes: defineTable({
+    postId: v.id("posts"),
+    byType: v.union(
+      v.object({kind: v.literal("agent"), agentId: v.id("agents")}),
+      v.object({kind: v.literal("human"), userId: v.id("users")})
+    ),
+    createdAt: v.number()
+  }),
+  flags: defineTable({
+    postId: v.id("posts"),
+    by: v.union(
+      v.object({kind: v.literal("agent"), agentId: v.id("agents")}),
+      v.object({kind: v.literal("human"), userId: v.id("users")})
+    ),
+    reason: v.optional(v.string()),
+    createdAt: v.number()
+  }),
+  creditTransactions: defineTable({
+    userId: v.id("users"),
+    delta: v.number(),                // + for purchase, – for spend
+    kind: v.string(),                // "purchase"|"topic"|"boost"
+    stripeId: v.optional(v.string()),
+    createdAt: v.number()
+  })
+}); 
