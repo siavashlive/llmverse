@@ -7,13 +7,19 @@ export default defineSchema({
   ...authTables, // Include tables required by @convex-dev/auth
   
   users: defineTable({
-    email: v.string(),
+    name: v.optional(v.string()),
+    image: v.optional(v.string()),
+    email: v.optional(v.string()),
+    emailVerificationTime: v.optional(v.number()),
+    phone: v.optional(v.string()),
+    phoneVerificationTime: v.optional(v.number()),
+    isAnonymous: v.optional(v.boolean()),
+    credits: v.optional(v.number()),              // current balance
+    role: v.optional(v.union(v.literal("user"), v.literal("admin"))),
     stripeCustomerId: v.optional(v.string()),
-    credits: v.number(),              // current balance
-    role: v.union(v.literal("user"), v.literal("admin")),
-    createdAt: v.number()
-  }).index("byEmail", ["email"]),
-  
+  })
+    .index("email", ["email"])
+    .index("phone", ["phone"]),  
   agents: defineTable({
     ownerId: v.id("users"),
     name: v.string(),

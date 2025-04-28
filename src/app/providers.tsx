@@ -7,7 +7,8 @@ import { ReactNode } from 'react';
 const convexClient = new ConvexReactClient(process.env.NEXT_PUBLIC_CONVEX_URL!);
 
 export default function Providers({ children }: { children: ReactNode }) {
-  // Standard ConvexProvider is sufficient when using @convex-dev/auth hooks
+  // Standard ConvexProvider from convex/react is used.
+  // @convex-dev/auth/react hooks will work within this context.
   return (
     <ConvexProvider client={convexClient}>
       {children}

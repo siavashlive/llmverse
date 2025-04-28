@@ -1,17 +1,10 @@
 import { convexAuth } from "@convex-dev/auth/server";
-import { Email } from "@convex-dev/auth/providers/Email";
-import { type EmailConfig } from "@convex-dev/auth/server";
-import authConfig from "./auth.config";
+import { Email } from "@convex-dev/auth/providers/Email"; 
+import { type EmailConfig } from "@convex-dev/auth/server"; // Import necessary types
 import { query, mutation } from "./_generated/server";
 import { v } from "convex/values";
 import { Id } from "./_generated/dataModel";
-import { Resend } from "resend";
-
-/**
- * Authentication configuration for Convex
- * 
- * This setup uses Resend for email delivery of magic links
- */
+import { Resend } from "resend"; // Import Resend here
 
 // Define the type for the parameters passed to sendVerificationRequest
 interface VerificationRequestParams {
@@ -76,31 +69,23 @@ if (!process.env.RESEND_API_KEY && process.env.NODE_ENV === 'production') {
   console.warn("WARNING: RESEND_API_KEY is not set in production environment! Email sending will fail.");
 }
 
-// Find the email provider config from the plain authConfig object
-const emailProviderConfig = authConfig.providers.find(p => p.id === 'resend' && p.type === 'email');
-if (!emailProviderConfig) {
-  throw new Error("Resend email provider configuration not found or is invalid in auth.config.ts");
-}
-
-// Initialize Convex Auth, passing the sendVerificationRequest function
+// Initialize Convex Auth directly with the full Email provider config
 export const { auth, signIn, signOut, store, isAuthenticated } = convexAuth({
   providers: [
     Email({
-      ...emailProviderConfig, // Spread the basic config from auth.config.ts
+      id: "resend", // Explicitly define ID here
+      from: 'LLMVerse <noreply@mail.siavash.live>', // Explicitly define from here
       sendVerificationRequest, // Provide the sending function defined above
     })
   ],
 });
 
-// Custom error class
-class AuthError extends Error {
-  constructor(message: string) {
-    super(message);
-    this.name = "AuthError";
-  }
-}
+// --- User Creation (Keep if needed for initial user setup) ---
+// NOTE: @convex-dev/auth might handle user creation automatically on first sign-in.
+// This custom function might only be needed if you have specific logic 
+// (like setting initial credits/role) that the default doesn't cover.
+// Verify if the library handles creation before keeping this long-term.
 
-// User authentication functions
 export const createUser = mutation({
   args: {
     email: v.string(),
@@ -108,20 +93,25 @@ export const createUser = mutation({
   async handler(ctx, args) {
     const existingUser = await ctx.db
       .query("users")
-      .withIndex("byEmail", (q) => q.eq("email", args.email))
+      // Use the default index on the email field provided by authTables
+      .withIndex("email", (q) => q.eq("email", args.email)) 
       .first();
 
     if (existingUser) {
       console.log(`User already exists: ${args.email}, ID: ${existingUser._id}`);
+      // Potentially update existing user fields if needed upon re-login/creation attempt
+      // Example: await ctx.db.patch(existingUser._id, { lastLogin: Date.now() });
       return existingUser._id;
     }
 
     console.log(`Creating new user: ${args.email}`);
+    // Insert only the fields you need to customize beyond what @convex-dev/auth provides
     const userId = await ctx.db.insert("users", {
-      email: args.email,
-      credits: 0, // Default credits as per PRD
-      role: "user",
-      createdAt: Date.now(),
+      email: args.email, 
+      credits: 0, // Custom field: Default credits as per PRD
+      role: "user",   // Custom field: Default role
+      // name: args.email.split('@')[0], // Optionally set a default name
+      // createdAt is likely handled by Convex or @convex-dev/auth
     });
     console.log(`New user created: ${args.email}, ID: ${userId}`);
 
@@ -132,21 +122,3 @@ export const createUser = mutation({
 // Note: The old sendMagicLink and verifyToken functions are removed as 
 // @convex-dev/auth handles this flow via the configuration in auth.config.ts 
 // and the exported signIn/signOut actions.
-
-// Helper function (can be kept if needed)
-function generateToken() {
-  return (
-    Math.random().toString(36).substring(2, 15) +
-    Math.random().toString(36).substring(2, 15)
-  );
-}
-
-// Add the authTokens table to schema.ts
-/* 
-  authTokens: defineTable({
-    email: v.string(),
-    token: v.string(),
-    expiresAt: v.number(),
-    createdAt: v.number(),
-  }).index("byToken", ["token"]),
-*/ 
