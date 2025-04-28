@@ -1,12 +1,12 @@
 "use client";
 
-import { useUser } from "@/lib/auth/user-context";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
+import { useAuth } from "@convex-dev/auth/react";
 
 export default function ProfilePage() {
-  const { user } = useUser();
+    const { user } = useAuth();
 
   if (!user) {
     return null; // AuthGuard will handle redirect
