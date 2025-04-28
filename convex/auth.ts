@@ -1,9 +1,11 @@
 import { convexAuth } from "@convex-dev/auth/server";
 import { Email } from "@convex-dev/auth/providers/Email";
+import { type EmailConfig, type EmailUserConfig } from "@convex-dev/auth/server";
 import authConfig from "./auth.config";
 import { query, mutation } from "./_generated/server";
 import { v } from "convex/values";
 import { Id } from "./_generated/dataModel";
+import { Resend } from "resend";
 
 /**
  * Authentication configuration for Convex
@@ -11,18 +13,82 @@ import { Id } from "./_generated/dataModel";
  * This setup uses Resend for email delivery of magic links
  */
 
-// Check if RESEND_API_KEY is set, critical for email provider
-if (!process.env.RESEND_API_KEY && process.env.NODE_ENV === 'production') {
-  console.error("CRITICAL: RESEND_API_KEY is not set in production environment!");
-  // Consider throwing an error in production if Resend is essential
-  // throw new Error("RESEND_API_KEY must be set in production");
+// Define the type for the parameters passed to sendVerificationRequest
+interface VerificationRequestParams {
+  identifier: string; // This is the email address
+  url: string;        // The magic link URL
+  token: string;      // The verification token
+  provider: EmailConfig; // The provider configuration
+  // theme: Theme; // Theme object might also be passed, add if needed
 }
 
-// Initialize Convex Auth
+// Define the email sending function using Resend
+async function sendVerificationRequest({ 
+  identifier: email, 
+  url, 
+  token, 
+  provider 
+}: VerificationRequestParams) {
+  const resendApiKey = process.env.RESEND_API_KEY;
+  if (!resendApiKey) {
+    console.error("CRITICAL: RESEND_API_KEY is not set. Cannot send email.");
+    // Log link for development/backup
+    console.log("========== RESEND NOT CONFIGURED - MAGIC LINK ==========");
+    console.log(`Magic Link for ${email}:`);
+    console.log(url);
+    console.log("=========================================================");
+    return; // Stop if Resend isn't configured
+  }
+
+  const resend = new Resend(resendApiKey);
+
+  try {
+    await resend.emails.send({
+      from: provider.from!, // Use the 'from' address from the config
+      to: [email],
+      subject: 'Sign in to LLMVerse',
+      html: `
+        <div>
+          <h1>Welcome to LLMVerse!</h1>
+          <p>Click the link below to sign in:</p>
+          <a href="${url}">Sign In to LLMVerse</a>
+          <p>This link includes a token: ${token} and will expire shortly.</p>
+        </div>
+      `,
+    });
+    console.log(`Magic link email sent to ${email} (token: ${token})`);
+    console.log("========== MAGIC LINK ==========");
+    console.log(`Magic Link for ${email}:`);
+    console.log(url);
+    console.log("================================");
+  } catch (error) {
+    console.error("Failed to send verification email:", error);
+    // Log link even if email fails
+    console.log("========== FAILED EMAIL - MAGIC LINK ==========");
+    console.log(`Magic Link for ${email}:`);
+    console.log(url);
+    console.log("=============================================");
+  }
+}
+
+// Check Resend API Key at startup (optional, but good practice)
+if (!process.env.RESEND_API_KEY && process.env.NODE_ENV === 'production') {
+  console.warn("WARNING: RESEND_API_KEY is not set in production environment! Email sending will fail.");
+}
+
+// Find the email provider config
+const emailProvider = authConfig.providers.find(p => p.id === 'resend') as EmailUserConfig;
+if (!emailProvider) {
+  throw new Error("Resend email provider configuration not found in auth.config.ts");
+}
+
+// Initialize Convex Auth, passing the sendVerificationRequest function
 export const { auth, signIn, signOut, store, isAuthenticated } = convexAuth({
   providers: [
-    // Ensure the config object is correctly typed and passed
-    Email(authConfig.providers.find(p => p.id === 'resend') as any)
+    Email({
+      ...emailProvider, // Spread the basic config from auth.config.ts
+      sendVerificationRequest, // Provide the sending function defined above
+    })
   ],
 });
 
