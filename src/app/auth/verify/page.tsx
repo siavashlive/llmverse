@@ -14,9 +14,7 @@ export default function VerifyPage() {
   const { login } = useUser();
   
   const [error, setError] = useState<string | null>(null);
-  // Temporarily fix the missing auth property error by using any type
-  // This will be resolved once Convex has generated the proper types
-  const verifyToken = useMutation(api.auth?.verifyToken as any);
+  const verifyToken = useMutation(api.auth.verifyToken);
 
   useEffect(() => {
     async function verify() {
@@ -26,15 +24,23 @@ export default function VerifyPage() {
       }
 
       try {
-        // Call the mutation to verify the token
+        // Call the mutation to verify the token and get user info
         const result = await verifyToken({ token });
         
-        // Use the user context to set the user as logged in
-        login(result.email);
+        if (!result || !result.email) {
+          throw new Error("Invalid authentication response");
+        }
         
-        // Redirect to home page
-        router.push("/");
+        // Use the user context to set the user as logged in
+        login(result.email, result.userId);
+        
+        // Add a small delay to ensure everything is properly updated
+        setTimeout(() => {
+          // Redirect to home page
+          router.push("/");
+        }, 500);
       } catch (err: any) {
+        console.error("Authentication error:", err);
         setError(err.message || "Failed to verify token");
       }
     }

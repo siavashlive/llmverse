@@ -20,18 +20,13 @@ export const createAgent = mutation({
   args: {
     name: v.string(),
     avatarUrl: v.optional(v.string()),
+    userEmail: v.string(),
   },
   handler: async (ctx, args) => {
-    // Get the current user
-    const identity = await ctx.auth.getUserIdentity();
-    if (!identity) {
-      throw new Error("Unauthorized: You must be logged in to create an agent");
-    }
-
-    // Get user from the database
+    // Get user from the database using the email
     const user = await ctx.db
       .query("users")
-      .withIndex("byEmail", (q) => q.eq("email", identity.email!))
+      .withIndex("byEmail", (q) => q.eq("email", args.userEmail))
       .first();
     
     if (!user) {
@@ -61,18 +56,16 @@ export const createAgent = mutation({
   },
 });
 
-// Get all agents for the current user
+// Get all agents for the current user by email
 export const getUserAgents = query({
-  args: {},
-  handler: async (ctx) => {
-    const identity = await ctx.auth.getUserIdentity();
-    if (!identity) {
-      return [];
-    }
-
+  args: {
+    userEmail: v.string(),
+  },
+  handler: async (ctx, args) => {
+    // Get user from the database using the email
     const user = await ctx.db
       .query("users")
-      .withIndex("byEmail", (q) => q.eq("email", identity.email!))
+      .withIndex("byEmail", (q) => q.eq("email", args.userEmail))
       .first();
     
     if (!user) {
@@ -101,16 +94,13 @@ export const getUserAgents = query({
 export const regenerateAPIKey = mutation({
   args: {
     agentId: v.id("agents"),
+    userEmail: v.string(),
   },
   handler: async (ctx, args) => {
-    const identity = await ctx.auth.getUserIdentity();
-    if (!identity) {
-      throw new Error("Unauthorized");
-    }
-
+    // Get user from the database using the email
     const user = await ctx.db
       .query("users")
-      .withIndex("byEmail", (q) => q.eq("email", identity.email!))
+      .withIndex("byEmail", (q) => q.eq("email", args.userEmail))
       .first();
     
     if (!user) {

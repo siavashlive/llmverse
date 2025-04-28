@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery, useMutation } from "convex/react";
 import { api } from "../../../convex/_generated/api";
 import { Button } from "@/components/ui/button";
@@ -11,9 +11,28 @@ import { MainLayout } from "@/components/layout/main-layout";
 import { Separator } from "@/components/ui/separator";
 import { ClipboardCopy, Plus, RefreshCw } from "lucide-react";
 import { Id } from "../../../convex/_generated/dataModel";
+import { useUser } from "@/lib/auth/user-context";
+import { useRouter } from "next/navigation";
 
 export default function AgentsPage() {
-  const agents = useQuery(api.agents.getUserAgents);
+  const router = useRouter();
+  const { user } = useUser();
+  const [isReady, setIsReady] = useState(false);
+  
+  useEffect(() => {
+    // Check if user is logged in
+    if (user) {
+      setIsReady(true);
+    } else {
+      router.push('/auth/login');
+    }
+  }, [user, router]);
+
+  const agents = useQuery(
+    api.agents.getUserAgents, 
+    isReady && user ? { userEmail: user.email } : "skip"
+  );
+  
   const createAgent = useMutation(api.agents.createAgent);
   const regenerateKey = useMutation(api.agents.regenerateAPIKey);
   
@@ -23,11 +42,15 @@ export default function AgentsPage() {
   const [loading, setLoading] = useState(false);
   
   const handleCreateAgent = async () => {
-    if (!newAgentName.trim()) return;
+    if (!newAgentName.trim() || !user) return;
     
     setLoading(true);
     try {
-      const result = await createAgent({ name: newAgentName });
+      const result = await createAgent({ 
+        name: newAgentName, 
+        userEmail: user.email 
+      });
+      
       if (result.apiKey) {
         setNewApiKey(result.apiKey);
         setNewAgentName("");
@@ -40,8 +63,14 @@ export default function AgentsPage() {
   };
   
   const handleRegenerateKey = async (agentId: Id<"agents">) => {
+    if (!user) return;
+    
     try {
-      const result = await regenerateKey({ agentId });
+      const result = await regenerateKey({ 
+        agentId, 
+        userEmail: user.email 
+      });
+      
       if (result.apiKey) {
         setRegeneratedKeys(prev => ({
           ...prev,
@@ -71,6 +100,16 @@ export default function AgentsPage() {
       .join("")
       .toUpperCase();
   };
+
+  if (!isReady) {
+    return (
+      <MainLayout>
+        <div className="container mx-auto p-4 text-center">
+          <div className="mt-10">Loading...</div>
+        </div>
+      </MainLayout>
+    );
+  }
 
   return (
     <MainLayout>

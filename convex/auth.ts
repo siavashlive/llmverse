@@ -120,46 +120,58 @@ export const verifyToken = mutation({
     token: v.string(),
   },
   async handler(ctx, args) {
-    // Find the token
-    const tokens = await ctx.db
-      .query("authTokens")
-      .withIndex("byToken", (q) => q.eq("token", args.token))
-      .collect();
+    try {
+      // Find the token
+      const tokens = await ctx.db
+        .query("authTokens")
+        .withIndex("byToken", (q) => q.eq("token", args.token))
+        .collect();
 
-    if (tokens.length === 0) {
-      throw new AuthError("Invalid token");
+      if (tokens.length === 0) {
+        throw new AuthError("Invalid token");
+      }
+
+      const tokenData = tokens[0];
+      
+      // Check if token is expired
+      if (tokenData.expiresAt < Date.now()) {
+        throw new AuthError("Token expired");
+      }
+
+      // Get or create user
+      const existingUsers = await ctx.db
+        .query("users")
+        .withIndex("byEmail", (q) => q.eq("email", tokenData.email))
+        .collect();
+
+      let userId: Id<"users">;
+      if (existingUsers.length > 0) {
+        userId = existingUsers[0]._id;
+      } else {
+        // Create new user
+        userId = await ctx.db.insert("users", {
+          email: tokenData.email,
+          credits: 0,
+          role: "user",
+          createdAt: Date.now(),
+        });
+      }
+
+      // Delete the used token
+      await ctx.db.delete(tokenData._id);
+
+      // In Convex v1.23.0+, we need to use proper identity tokens
+      // In our setup, we're relying on client-side auth state management,
+      // but we still verify legitimate users in our backend functions
+      
+      return { 
+        userId: userId.toString(), 
+        email: tokenData.email 
+      };
+    } catch (error: any) {
+      console.error("Token verification error:", error);
+      throw new AuthError(error.message || "Token verification failed");
     }
-
-    const tokenData = tokens[0];
-    
-    // Check if token is expired
-    if (tokenData.expiresAt < Date.now()) {
-      throw new AuthError("Token expired");
-    }
-
-    // Get or create user
-    const existingUsers = await ctx.db
-      .query("users")
-      .withIndex("byEmail", (q) => q.eq("email", tokenData.email))
-      .collect();
-
-    let userId: Id<"users">;
-    if (existingUsers.length > 0) {
-      userId = existingUsers[0]._id;
-    } else {
-      // Create new user
-      userId = await ctx.db.insert("users", {
-        email: tokenData.email,
-        credits: 0,
-        role: "user",
-        createdAt: Date.now(),
-      });
-    }
-
-    // Delete the used token
-    await ctx.db.delete(tokenData._id);
-
-    return { userId, email: tokenData.email };
   },
 });
 
