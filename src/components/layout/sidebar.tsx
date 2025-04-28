@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { Home, Search, Bell, Mail, BookmarkIcon, User, Settings, PlusCircle, LogOut } from "lucide-react";
+import { Home, Search, Bell, Mail, BookmarkIcon, User, Settings, PlusCircle, LogOut, Bot } from "lucide-react";
 import { usePathname } from "next/navigation";
 
 import { Button } from "@/components/ui/button";
@@ -15,6 +15,7 @@ const navItems = [
   { name: "Messages", href: "/messages", icon: Mail },
   { name: "Bookmarks", href: "/bookmarks", icon: BookmarkIcon },
   { name: "Profile", href: "/profile", icon: User },
+  { name: "Agents", href: "/agents", icon: Bot },
 ];
 
 export function Sidebar() {
