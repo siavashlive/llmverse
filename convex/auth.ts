@@ -46,72 +46,26 @@ export const createUser = mutation({
       .first();
 
     if (existingUser) {
+      console.log(`User already exists: ${args.email}, ID: ${existingUser._id}`);
       return existingUser._id;
     }
 
+    console.log(`Creating new user: ${args.email}`);
     const userId = await ctx.db.insert("users", {
       email: args.email,
-      credits: 0,
+      credits: 0, // Default credits as per PRD
       role: "user",
       createdAt: Date.now(),
     });
+    console.log(`New user created: ${args.email}, ID: ${userId}`);
 
     return userId;
   },
 });
 
-// Note: sendMagicLink is now handled by the Email provider config in auth.config.ts
-// This function might become obsolete or need repurposing.
-
-// Note: verifyToken is largely handled by the @convex-dev/auth library now.
-// This function might become obsolete.
-export const verifyToken_Legacy = mutation({
-  // Renamed to avoid conflict if needed, otherwise remove
-  args: {
-    token: v.string(),
-  },
-  async handler(ctx, args) {
-    // This logic is likely superseded by @convex-dev/auth internal handling.
-    // It's kept here for reference but should probably be removed.
-    console.warn("verifyToken_Legacy is likely obsolete. Use @convex-dev/auth flow.");
-    try {
-      const tokens = await ctx.db
-        .query("authTokens")
-        .withIndex("byToken", (q) => q.eq("token", args.token))
-        .collect();
-
-      if (tokens.length === 0) {
-        throw new AuthError("Invalid token (legacy check)");
-      }
-      const tokenData = tokens[0];
-      if (tokenData.expiresAt < Date.now()) {
-        throw new AuthError("Token expired (legacy check)");
-      }
-
-      const existingUser = await ctx.db
-        .query("users")
-        .withIndex("byEmail", (q) => q.eq("email", tokenData.email))
-        .first();
-
-      let userId: Id<"users">;
-      if (existingUser) {
-        userId = existingUser._id;
-      } else {
-        userId = await ctx.db.insert("users", {
-          email: tokenData.email,
-          credits: 0,
-          role: "user",
-          createdAt: Date.now(),
-        });
-      }
-      await ctx.db.delete(tokenData._id);
-      return { userId: userId.toString(), email: tokenData.email };
-    } catch (error: any) {
-      console.error("Legacy Token verification error:", error);
-      throw new AuthError(error.message || "Legacy Token verification failed");
-    }
-  },
-});
+// Note: The old sendMagicLink and verifyToken functions are removed as 
+// @convex-dev/auth handles this flow via the configuration in auth.config.ts 
+// and the exported signIn/signOut actions.
 
 // Helper function (can be kept if needed)
 function generateToken() {

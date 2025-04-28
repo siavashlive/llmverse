@@ -3,10 +3,11 @@
 import Link from "next/link";
 import { Home, Search, Bell, Mail, BookmarkIcon, User, Settings, PlusCircle, LogOut, Bot } from "lucide-react";
 import { usePathname } from "next/navigation";
+import { useAction, useQuery, Authenticated, Unauthenticated } from "convex/react";
+import { api } from "@/../convex/_generated/api";
 
 import { Button } from "@/components/ui/button";
 import { ThemeToggle } from "@/components/ui/theme-toggle";
-import { useUser } from "@/lib/auth/user-context";
 
 const navItems = [
   { name: "Home", href: "/", icon: Home },
@@ -18,9 +19,25 @@ const navItems = [
   { name: "Agents", href: "/agents", icon: Bot },
 ];
 
+function UserInfo() {
+  const handleSignOut = useAction(api.auth.signOut);
+
+  return (
+    <div className="flex flex-col gap-2">
+      <Button 
+        variant="ghost" 
+        className="justify-start"
+        onClick={() => handleSignOut()}
+      >
+        <LogOut className="h-5 w-5 xl:mr-2" />
+        <span className="hidden xl:block">Logout</span>
+      </Button>
+    </div>
+  );
+}
+
 export function Sidebar() {
   const pathname = usePathname();
-  const { user, logout } = useUser();
 
   return (
     <div className="h-screen sticky top-0 flex flex-col justify-between py-4 w-16 xl:w-64 border-r border-border dark:border-neutral-800">
@@ -34,55 +51,50 @@ export function Sidebar() {
         </Link>
         {navItems.map((item) => {
           const Icon = item.icon;
+          const requiresAuth = ["/profile", "/agents", "/bookmarks", "/messages", "/notifications"].includes(item.href);
           const isActive = pathname === item.href;
           
-          return (
-            <Link 
-              key={item.name}
-              href={item.href}
-              className={`flex items-center p-2 xl:px-4 rounded-full hover:bg-accent/40 transition-colors ${
-                isActive ? "font-bold" : "font-normal"
-              }`}
-            >
+          const linkContent = (
+            <div className={`flex items-center p-2 xl:px-4 rounded-full hover:bg-accent/40 transition-colors ${
+              isActive ? "font-bold" : "font-normal"
+            }`}>
               <Icon className="h-6 w-6" />
               <span className="hidden xl:block ml-4">{item.name}</span>
-            </Link>
+            </div>
           );
+
+          if (requiresAuth) {
+            return (
+              <Authenticated key={item.name}>
+                <Link href={item.href}>{linkContent}</Link>
+              </Authenticated>
+            );
+          } else {
+            return (
+              <Link key={item.name} href={item.href}>{linkContent}</Link>
+            );
+          }
         })}
         
-        <Button className="mt-4 rounded-full w-12 xl:w-full bg-primary hover:bg-primary/90 text-primary-foreground">
-          <PlusCircle className="h-5 w-5 xl:mr-2" />
-          <span className="hidden xl:block">Post</span>
-        </Button>
+        <Authenticated>
+          <Button className="mt-4 rounded-full w-12 xl:w-full bg-primary hover:bg-primary/90 text-primary-foreground">
+            <PlusCircle className="h-5 w-5 xl:mr-2" />
+            <span className="hidden xl:block">Post</span>
+          </Button>
+        </Authenticated>
       </div>
       
       <div className="px-2 space-y-2">
-        {user ? (
-          <div className="flex flex-col gap-2">
-            <div className="hidden xl:flex items-center px-4 py-2 rounded-full">
-              <div className="bg-primary text-primary-foreground w-10 h-10 rounded-full flex items-center justify-center">
-                {user.email.substring(0, 2).toUpperCase()}
-              </div>
-              <div className="ml-3 overflow-hidden">
-                <p className="text-sm font-medium truncate">{user.email}</p>
-              </div>
-            </div>
-            <Button 
-              variant="ghost" 
-              className="justify-start"
-              onClick={logout}
-            >
-              <LogOut className="h-5 w-5 xl:mr-2" />
-              <span className="hidden xl:block">Logout</span>
-            </Button>
-          </div>
-        ) : (
+        <Authenticated>
+          <UserInfo />
+        </Authenticated>
+        <Unauthenticated>
           <Link href="/auth/login">
             <Button variant="outline" className="w-full rounded-full">
               Sign In
             </Button>
           </Link>
-        )}
+        </Unauthenticated>
         <ThemeToggle />
       </div>
     </div>
