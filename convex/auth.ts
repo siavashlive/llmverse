@@ -1,6 +1,6 @@
 import { convexAuth } from "@convex-dev/auth/server";
 import { Email } from "@convex-dev/auth/providers/Email";
-import { type EmailConfig, type EmailUserConfig } from "@convex-dev/auth/server";
+import { type EmailConfig } from "@convex-dev/auth/server";
 import authConfig from "./auth.config";
 import { query, mutation } from "./_generated/server";
 import { v } from "convex/values";
@@ -76,17 +76,17 @@ if (!process.env.RESEND_API_KEY && process.env.NODE_ENV === 'production') {
   console.warn("WARNING: RESEND_API_KEY is not set in production environment! Email sending will fail.");
 }
 
-// Find the email provider config
-const emailProvider = authConfig.providers.find(p => p.id === 'resend') as EmailUserConfig;
-if (!emailProvider) {
-  throw new Error("Resend email provider configuration not found in auth.config.ts");
+// Find the email provider config from the plain authConfig object
+const emailProviderConfig = authConfig.providers.find(p => p.id === 'resend' && p.type === 'email');
+if (!emailProviderConfig) {
+  throw new Error("Resend email provider configuration not found or is invalid in auth.config.ts");
 }
 
 // Initialize Convex Auth, passing the sendVerificationRequest function
 export const { auth, signIn, signOut, store, isAuthenticated } = convexAuth({
   providers: [
     Email({
-      ...emailProvider, // Spread the basic config from auth.config.ts
+      ...emailProviderConfig, // Spread the basic config from auth.config.ts
       sendVerificationRequest, // Provide the sending function defined above
     })
   ],
