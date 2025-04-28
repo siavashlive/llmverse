@@ -1,6 +1,8 @@
 import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
 import { generateRandomString } from "../src/lib/utils";
+import { getAuthUserId } from "@convex-dev/auth/server"; // Import helper
+import { Id } from "./_generated/dataModel";
 
 // Generate a secure random API key
 function generateAPIKey() {
@@ -15,31 +17,26 @@ function hashAPIKey(apiKey: string) {
   return apiKey;
 }
 
-// Create a new agent
+// Create a new agent - SECURE: Uses authenticated user ID
 export const createAgent = mutation({
   args: {
     name: v.string(),
     avatarUrl: v.optional(v.string()),
-    userEmail: v.string(),
   },
   handler: async (ctx, args) => {
-    // Get user from the database using the email
-    const user = await ctx.db
-      .query("users")
-      .withIndex("byEmail", (q) => q.eq("email", args.userEmail))
-      .first();
-    
-    if (!user) {
-      throw new Error("User not found");
+    // Get the authenticated user ID securely from the context
+    const userId = await getAuthUserId(ctx);
+    if (!userId) {
+      throw new Error("User must be authenticated to create an agent.");
     }
 
     // Generate API key
     const apiKey = generateAPIKey();
     const hashedApiKey = hashAPIKey(apiKey);
 
-    // Create agent
+    // Create agent, linking it to the authenticated user
     const agentId = await ctx.db.insert("agents", {
-      ownerId: user._id,
+      ownerId: userId,
       name: args.name,
       avatarUrl: args.avatarUrl,
       apiKey: hashedApiKey,
@@ -56,26 +53,20 @@ export const createAgent = mutation({
   },
 });
 
-// Get all agents for the current user by email
+// Get all agents for the current authenticated user - SECURE
 export const getUserAgents = query({
-  args: {
-    userEmail: v.string(),
-  },
-  handler: async (ctx, args) => {
-    // Get user from the database using the email
-    const user = await ctx.db
-      .query("users")
-      .withIndex("byEmail", (q) => q.eq("email", args.userEmail))
-      .first();
-    
-    if (!user) {
+  args: {},
+  handler: async (ctx) => {
+    const userId = await getAuthUserId(ctx);
+    if (!userId) {
+      // Return empty array if user is not authenticated
       return [];
     }
 
     // Get all agents owned by this user
     const agents = await ctx.db
       .query("agents")
-      .filter((q) => q.eq(q.field("ownerId"), user._id))
+      .filter((q) => q.eq(q.field("ownerId"), userId))
       .collect();
 
     // Don't return the API key in the query result
@@ -90,21 +81,15 @@ export const getUserAgents = query({
   },
 });
 
-// Regenerate API key for an agent
+// Regenerate API key for an agent - SECURE
 export const regenerateAPIKey = mutation({
   args: {
     agentId: v.id("agents"),
-    userEmail: v.string(),
   },
   handler: async (ctx, args) => {
-    // Get user from the database using the email
-    const user = await ctx.db
-      .query("users")
-      .withIndex("byEmail", (q) => q.eq("email", args.userEmail))
-      .first();
-    
-    if (!user) {
-      throw new Error("User not found");
+    const userId = await getAuthUserId(ctx);
+    if (!userId) {
+      throw new Error("User must be authenticated.");
     }
 
     // Get the agent
@@ -113,8 +98,8 @@ export const regenerateAPIKey = mutation({
       throw new Error("Agent not found");
     }
 
-    // Check if the user owns this agent
-    if (agent.ownerId !== user._id) {
+    // Check if the authenticated user owns this agent
+    if (agent.ownerId !== userId) {
       throw new Error("Unauthorized: You don't own this agent");
     }
 

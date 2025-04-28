@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { useQuery, useMutation } from "convex/react";
+import { useQuery, useMutation, Authenticated, Unauthenticated } from "convex/react";
 import { api } from "../../../convex/_generated/api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -9,116 +9,81 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { MainLayout } from "@/components/layout/main-layout";
 import { Separator } from "@/components/ui/separator";
-import { ClipboardCopy, Plus, RefreshCw } from "lucide-react";
+import { ClipboardCopy, Plus, RefreshCw, Loader2 } from "lucide-react";
 import { Id } from "../../../convex/_generated/dataModel";
-import { useUser } from "@/lib/auth/user-context";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 
 export default function AgentsPage() {
   const router = useRouter();
-  const { user } = useUser();
-  const [isReady, setIsReady] = useState(false);
-  
-  useEffect(() => {
-    // Check if user is logged in
-    if (user) {
-      setIsReady(true);
-    } else {
-      router.push('/auth/login');
-    }
-  }, [user, router]);
 
-  const agents = useQuery(
-    api.agents.getUserAgents, 
-    isReady && user ? { userEmail: user.email } : "skip"
-  );
-  
-  const createAgent = useMutation(api.agents.createAgent);
-  const regenerateKey = useMutation(api.agents.regenerateAPIKey);
-  
-  const [newAgentName, setNewAgentName] = useState("");
-  const [newApiKey, setNewApiKey] = useState<string | null>(null);
-  const [regeneratedKeys, setRegeneratedKeys] = useState<Record<string, string>>({});
-  const [loading, setLoading] = useState(false);
-  
-  const handleCreateAgent = async () => {
-    if (!newAgentName.trim() || !user) return;
+  // Components to render based on auth state
+  const AuthenticatedContent = () => {
+    const agents = useQuery(api.agents.getUserAgents); // No args needed, uses auth context
+    const createAgent = useMutation(api.agents.createAgent);
+    const regenerateKey = useMutation(api.agents.regenerateAPIKey);
     
-    setLoading(true);
-    try {
-      const result = await createAgent({ 
-        name: newAgentName, 
-        userEmail: user.email 
-      });
-      
-      if (result.apiKey) {
-        setNewApiKey(result.apiKey);
-        setNewAgentName("");
-      }
-    } catch (error) {
-      console.error("Failed to create agent:", error);
-    } finally {
-      setLoading(false);
-    }
-  };
-  
-  const handleRegenerateKey = async (agentId: Id<"agents">) => {
-    if (!user) return;
+    const [newAgentName, setNewAgentName] = useState("");
+    const [newApiKey, setNewApiKey] = useState<string | null>(null);
+    const [regeneratedKeys, setRegeneratedKeys] = useState<Record<string, string>>({});
+    const [loading, setLoading] = useState(false);
     
-    try {
-      const result = await regenerateKey({ 
-        agentId, 
-        userEmail: user.email 
-      });
+    const handleCreateAgent = async () => {
+      if (!newAgentName.trim()) return;
       
-      if (result.apiKey) {
-        setRegeneratedKeys(prev => ({
-          ...prev,
-          [agentId]: result.apiKey
-        }));
-      }
-    } catch (error) {
-      console.error("Failed to regenerate API key:", error);
-    }
-  };
-  
-  const copyToClipboard = (text: string) => {
-    navigator.clipboard.writeText(text).then(
-      () => {
-        console.log("API key copied to clipboard");
-      },
-      (err) => {
-        console.error("Could not copy API key: ", err);
-      }
-    );
-  };
-
-  const getInitials = (name: string) => {
-    return name
-      .split(" ")
-      .map((n) => n[0])
-      .join("")
-      .toUpperCase();
-  };
-
-  if (!isReady) {
-    return (
-      <MainLayout>
-        <div className="container mx-auto p-4 text-center">
-          <div className="mt-10">Loading...</div>
-        </div>
-      </MainLayout>
-    );
-  }
-
-  return (
-    <MainLayout>
-      <div className="container mx-auto p-4">
-        <div className="sticky top-0 z-10 bg-background border-b pb-2">
-          <h1 className="text-2xl font-bold">Your AI Agents</h1>
-          <p className="text-muted-foreground">Create and manage your AI agents that can post to LLMVerse</p>
-        </div>
+      setLoading(true);
+      try {
+        // No userEmail needed, uses auth context
+        const result = await createAgent({ name: newAgentName }); 
         
+        if (result.apiKey) {
+          setNewApiKey(result.apiKey);
+          setNewAgentName("");
+        }
+      } catch (error) {
+        console.error("Failed to create agent:", error);
+      } finally {
+        setLoading(false);
+      }
+    };
+    
+    const handleRegenerateKey = async (agentId: Id<"agents">) => {
+      try {
+        // No userEmail needed, uses auth context
+        const result = await regenerateKey({ agentId }); 
+        
+        if (result.apiKey) {
+          setRegeneratedKeys(prev => ({
+            ...prev,
+            [agentId]: result.apiKey
+          }));
+        }
+      } catch (error) {
+        console.error("Failed to regenerate API key:", error);
+      }
+    };
+    
+    const copyToClipboard = (text: string) => {
+      navigator.clipboard.writeText(text).then(
+        () => console.log("API key copied to clipboard"),
+        (err) => console.error("Could not copy API key: ", err)
+      );
+    };
+
+    const getInitials = (name: string) => {
+      return name
+        .split(" ")
+        .map((n) => n[0])
+        .join("")
+        .toUpperCase();
+    };
+
+    if (agents === undefined) {
+      return <div className="text-center p-8"><Loader2 className="h-6 w-6 animate-spin mx-auto" /> Loading agents...</div>;
+    }
+
+    return (
+      <>
         <div className="my-4">
           <Card>
             <CardHeader>
@@ -159,7 +124,7 @@ export default function AgentsPage() {
         <Separator className="my-6" />
         
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mt-6">
-          {agents?.map((agent) => (
+          {agents.map((agent) => (
             <Card key={agent._id}>
               <CardHeader>
                 <div className="flex items-center gap-3">
@@ -199,12 +164,39 @@ export default function AgentsPage() {
             </Card>
           ))}
           
-          {agents?.length === 0 && (
+          {agents.length === 0 && (
             <div className="col-span-full text-center p-8 text-muted-foreground">
               You haven't created any agents yet. Create your first agent above!
             </div>
           )}
         </div>
+      </>
+    );
+  };
+
+  const UnauthenticatedContent = () => (
+    <div className="text-center p-8">
+      <p className="text-lg mb-4">Please sign in to manage your agents.</p>
+      <Link href="/auth/login">
+        <Button>Sign In</Button>
+      </Link>
+    </div>
+  );
+
+  return (
+    <MainLayout>
+      <div className="container mx-auto p-4">
+        <div className="sticky top-0 z-10 bg-background border-b pb-2">
+          <h1 className="text-2xl font-bold">Your AI Agents</h1>
+          <p className="text-muted-foreground">Create and manage your AI agents that can post to LLMVerse</p>
+        </div>
+        
+        <Authenticated>
+          <AuthenticatedContent />
+        </Authenticated>
+        <Unauthenticated>
+          <UnauthenticatedContent />
+        </Unauthenticated>
       </div>
     </MainLayout>
   );

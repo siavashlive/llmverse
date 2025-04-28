@@ -1,116 +1,80 @@
 "use client";
 
 import { useState } from "react";
-import { z } from "zod";
-import { useMutation } from "convex/react";
-import { api } from "../../../convex/_generated/api";
-import { Button } from "@/components/ui/button";
+import { useAction } from "convex/react";
+import { api } from "@/../convex/_generated/api";
 import { Input } from "@/components/ui/input";
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
-import { Check, Loader2 } from "lucide-react";
-
-const emailSchema = z.string().email({
-  message: "Please enter a valid email address",
-});
+import { Button } from "@/components/ui/button";
+import { Loader2 } from "lucide-react";
 
 export function LoginForm() {
   const [email, setEmail] = useState("");
-  const [emailError, setEmailError] = useState("");
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [isSuccess, setIsSuccess] = useState(false);
-  
-  // Temporarily fix the missing auth property error by using any type
-  // This will be resolved once Convex has generated the proper types
-  const sendMagicLink = useMutation(api.auth?.sendMagicLink as any);
+  const [loading, setLoading] = useState(false);
+  const [submitted, setSubmitted] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setEmailError("");
-    
+  // Use the signIn action from @convex-dev/auth
+  const signInAction = useAction(api.auth.signIn);
+
+  const handleSubmit = async (event: React.FormEvent) => {
+    event.preventDefault();
+    setLoading(true);
+    setError(null);
+    setSubmitted(false);
+
     try {
-      // Validate email
-      emailSchema.parse(email);
+      // Use the location for the redirect URL in the magic link
+      const redirectUrl = window.location.origin + "/auth/verify";
       
-      setIsSubmitting(true);
-      
-      // Send magic link
-      await sendMagicLink({
-        email,
-        redirectUrl: `${window.location.origin}/auth/verify`,
+      // Call the signIn action with correct parameters for email provider
+      await signInAction({
+        provider: "resend", // Matches the ID in auth.config.ts
+        params: { // Pass email and redirectUrl within params for email provider
+          email,
+          redirectUrl,
+        }
       });
       
-      setIsSuccess(true);
-    } catch (error) {
-      if (error instanceof z.ZodError) {
-        setEmailError(error.errors[0].message);
-      } else {
-        setEmailError("Failed to send login link. Please try again.");
-        console.error("Login error:", error);
-      }
+      setSubmitted(true);
+    } catch (err: any) {
+      console.error("Sign in error:", err);
+      setError(err.message || "An error occurred during sign in.");
     } finally {
-      setIsSubmitting(false);
+      setLoading(false);
     }
   };
 
   return (
-    <Card className="w-[350px]">
-      <CardHeader>
-        <CardTitle>Sign In</CardTitle>
-        <CardDescription>
-          Enter your email to receive a magic link
-        </CardDescription>
-      </CardHeader>
-      <CardContent>
-        {isSuccess ? (
-          <div className="flex flex-col items-center justify-center py-4 space-y-4 text-center">
-            <div className="h-12 w-12 rounded-full bg-green-100 flex items-center justify-center">
-              <Check className="h-6 w-6 text-green-600" />
-            </div>
-            <div>
-              <h3 className="font-medium text-lg">Check your inbox</h3>
-              <p className="text-muted-foreground">
-                We've sent a magic link to <span className="font-medium">{email}</span>
-              </p>
-            </div>
-          </div>
-        ) : (
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <div className="space-y-2">
-              <Input
-                id="email"
-                type="email"
-                placeholder="you@example.com"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                disabled={isSubmitting}
-                required
-              />
-              {emailError && (
-                <p className="text-sm text-red-500">{emailError}</p>
-              )}
-            </div>
-            <Button 
-              type="submit" 
-              className="w-full" 
-              disabled={isSubmitting}
-            >
-              {isSubmitting ? (
-                <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Sending...
-                </>
-              ) : (
-                "Sign In with Email"
-              )}
-            </Button>
-          </form>
-        )}
-      </CardContent>
-      <CardFooter className="flex justify-center">
-        <p className="text-xs text-muted-foreground">
-          By continuing, you agree to our Terms of Service and Privacy Policy
+    <form onSubmit={handleSubmit} className="space-y-4 w-full max-w-sm">
+      <Input
+        type="email"
+        placeholder="Email Address"
+        value={email}
+        onChange={(e) => setEmail(e.target.value)}
+        required
+        disabled={loading || submitted}
+        className="dark:bg-neutral-800 dark:border-neutral-700"
+      />
+      <Button 
+        type="submit" 
+        className="w-full bg-primary hover:bg-primary/90 text-primary-foreground"
+        disabled={loading || submitted}
+      >
+        {loading ? (
+          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+        ) : null}
+        {submitted ? "Check your email" : "Send Sign-In Link"}
+      </Button>
+      {submitted && (
+        <p className="text-sm text-green-600 dark:text-green-400 text-center">
+          Magic link sent! Check your email inbox (and spam folder).
         </p>
-      </CardFooter>
-    </Card>
+      )}
+      {error && (
+        <p className="text-sm text-red-600 dark:text-red-400 text-center">
+          Error: {error}
+        </p>
+      )}
+    </form>
   );
 } 

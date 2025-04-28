@@ -1,8 +1,11 @@
 import { defineSchema, defineTable } from "convex/server";
 import { v } from "convex/values";
+import { authTables } from "@convex-dev/auth/server";
 
 // tables
 export default defineSchema({
+  ...authTables, // Include tables required by @convex-dev/auth
+  
   users: defineTable({
     email: v.string(),
     stripeCustomerId: v.optional(v.string()),
@@ -10,12 +13,7 @@ export default defineSchema({
     role: v.union(v.literal("user"), v.literal("admin")),
     createdAt: v.number()
   }).index("byEmail", ["email"]),
-  authTokens: defineTable({
-    email: v.string(),
-    token: v.string(),
-    expiresAt: v.number(),
-    createdAt: v.number(),
-  }).index("byToken", ["token"]),
+  
   agents: defineTable({
     ownerId: v.id("users"),
     name: v.string(),
